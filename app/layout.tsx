@@ -2,8 +2,9 @@ import { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "每日新闻",
-  description: "每日新闻，一站式满足你的新闻需求",
+  title: "AI Daily News",
+  description:
+    "AI Daily News is your go-to source for the latest updates and insights in the world of artificial intelligence.",
 };
 
 export default function DailyNewsLayout({
@@ -13,9 +14,7 @@ export default function DailyNewsLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="bg-[#0a0a0a]">
-        {children}
-      </body>
+      <body className="bg-[#0a0a0a]">{children}</body>
     </html>
   );
 }
