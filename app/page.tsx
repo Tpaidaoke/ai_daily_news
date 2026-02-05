@@ -13,7 +13,9 @@ interface NewsItem {
   link: string;
 }
 
-const translations: Record<string, Record<string, string>> = {
+type TranslationValue = string | ((n: number) => string);
+
+const translations: Record<string, Record<string, TranslationValue>> = {
   zh: {
     title: "每日新闻资讯",
     subtitle: "AI 每日新闻资讯",
@@ -298,8 +300,9 @@ export default function Home() {
 
   const t = useCallback((key: string) => {
     const trans = translations[lang];
-    if (key === "newsCount" || key === "hoursAgo" || key === "daysAgo") return key;
-    return trans[key] || key;
+    const value = trans[key];
+    if (typeof value === "function") return key;
+    return value || key;
   }, [lang]);
 
   useEffect(() => {
