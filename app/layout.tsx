@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,7 +15,14 @@ export default function DailyNewsLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className="bg-[#0a0a0a]">{children}</body>
+      <meta
+        name="google-adsense-account"
+        content="ca-pub-5659389507566454"
+      ></meta>
+      <body className="bg-[#0a0a0a]">
+        {children}
+        <Toaster position="top-center" />
+      </body>
     </html>
   );
 }

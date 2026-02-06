@@ -380,12 +380,12 @@ export default function Home() {
       method: "POST",
       body: JSON.stringify({ email: email.trim() }),
     })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          toast.error(data.error);
-        } else {
+      .then(async (res) => {
+        const data = await res.json();
+        if (res.ok) {
           toast.success(t("subscribeSuccess"));
+        } else {
+          toast.error(data.message || t("subscribeFail"));
         }
       })
       .catch(() => {
