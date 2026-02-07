@@ -1,41 +1,36 @@
-import { fetchAllNews, NewsItem } from "@/lib/rss_utils";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { fetchAllNews, filterNewsByCategory } from "../../../lib/rss_utils";
 
-const categoryKeywords: Record<string, string[]> = {
-  ai: ["ai", "artificial intelligence", "machine learning", "deep learning", "llm", "language model", "neural", "gpt", "claude", "gemini"],
-  startup: ["startup", "start-up", "venture", "funding", "investor", "ipo", "acquisition", "seed", "series a", "series b", "founder", "entrepreneur"],
-  tech: ["algorithm", "architecture", "api", "sdk", "framework", "benchmark", "research paper", "implementation", "optimization", "performance"],
-  trend: ["trend", "forecast", "prediction", "market", "industry", "adoption", "growth", "future", "analysis", "report"],
-};
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const category = searchParams.get("category") as "quick" | "deep" | "followup" | "all" | null;
+  const keyword = searchParams.get("keyword");
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "20");
 
-function filterNewsByCategory(news: NewsItem[], category: string): NewsItem[] {
-  if (category === "all") return news;
-
-  const keywords = categoryKeywords[category] || [];
-  if (keywords.length === 0) return news;
-
-  return news.filter((item) => {
-    const text = `${item.title} ${item.description || ""} ${item.source}`.toLowerCase();
-    return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
-  });
-}
-
-export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const category = searchParams.get("category") || "all";
-    const pageSize = 6;
-
     const allNews = await fetchAllNews();
-    const filteredNews = filterNewsByCategory(allNews, category);
+    const filtered = filterNewsByCategory(
+      allNews,
+      category || "all",
+      keyword || undefined
+    );
 
-    const startIndex = (page - 1) * pageSize;
-    const paginatedNews = filteredNews.slice(startIndex, startIndex + pageSize);
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginatedNews = filtered.slice(start, end);
 
-    return NextResponse.json({ news: paginatedNews });
+    return NextResponse.json({
+      news: paginatedNews,
+      total: filtered.length,
+      page,
+      hasMore: end < filtered.length,
+    });
   } catch (error) {
     console.error("Error fetching news:", error);
-    return NextResponse.json({ error: "Failed to fetch news" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch news" },
+      { status: 500 }
+    );
   }
 }

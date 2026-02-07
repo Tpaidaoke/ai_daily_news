@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { NewspaperIcon, Sparkles, ExternalLink, Clock, ChevronDown, ChevronUp, FileText, Globe, RotateCcw } from "lucide-react";
+import { NewspaperIcon, Sparkles, ExternalLink, Clock, ChevronDown, ChevronUp, FileText, Globe, RotateCcw, Zap, BookOpen, Target, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Brain, Rocket, Cpu, TrendingUp } from "lucide-react";
 
@@ -11,7 +11,41 @@ interface NewsItem {
   source?: string | null;
   pubDate?: string;
   link: string;
+  category?: "quick" | "deep" | "followup";
+  keywords?: string[];
+  summary?: string;
+  clusterId?: string;
 }
+
+const readingModes = [
+  { id: "all", labelKey: "all", icon: <Sparkles className="w-4 h-4" />, color: "blue", desc: "全部新闻" },
+  { id: "quick", labelKey: "quickRead", icon: <Zap className="w-4 h-4" />, color: "yellow", desc: "速读 - 标题党精选" },
+  { id: "deep", labelKey: "deepRead", icon: <BookOpen className="w-4 h-4" />, color: "purple", desc: "精读 - 深度好文" },
+  { id: "followup", labelKey: "followUp", icon: <Target className="w-4 h-4" />, color: "green", desc: "跟进 - 源头+讨论" },
+];
+
+const readingModesEn = [
+  { id: "all", labelKey: "all", icon: <Sparkles className="w-4 h-4" />, color: "blue", desc: "All News" },
+  { id: "quick", labelKey: "quickRead", icon: <Zap className="w-4 h-4" />, color: "yellow", desc: "Quick Scan - Headlines" },
+  { id: "deep", labelKey: "deepRead", icon: <BookOpen className="w-4 h-4" />, color: "purple", desc: "Deep Read - Analysis" },
+  { id: "followup", labelKey: "followUp", icon: <Target className="w-4 h-4" />, color: "green", desc: "Follow Up - Source & Discussion" },
+];
+
+const keywordColors: Record<string, string> = {
+  "GPT": "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  "Llama": "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  "Claude": "bg-red-500/20 text-red-400 border-red-500/30",
+  "Mistral": "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+  "开源": "bg-green-500/20 text-green-400 border-green-500/30",
+  "安全": "bg-red-500/20 text-red-400 border-red-500/30",
+  "安全漏洞": "bg-red-600/20 text-red-500 border-red-600/30",
+  "攻击": "bg-red-500/20 text-red-400 border-red-500/30",
+  "伦理": "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  "监管": "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  "AGI": "bg-gradient-to-r from-purple-500 to-pink-500/20 text-white border-transparent",
+  "Agent": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  "RAG": "bg-blue-500/20 text-blue-400 border-blue-500/30",
+};
 
 type TranslationValue = string | ((n: number) => string);
 
@@ -40,6 +74,15 @@ const translations: Record<string, Record<string, TranslationValue>> = {
     loadMore: "加载更多中...",
     noMore: "没有更多新闻了",
     all: "全部",
+    quickRead: "速读",
+    deepRead: "精读",
+    followUp: "跟进",
+    filterKeywords: "筛选关键词",
+    searchPlaceholder: "搜索新闻...",
+    readingGuide: "阅读指南",
+    quickReadDesc: "快速浏览标题和热度",
+    deepReadDesc: "深度分析和长文",
+    followUpDesc: "查看源头和讨论",
     ai: "人工智能",
     startup: "初创动态",
     tech: "技术深度",
@@ -73,6 +116,15 @@ const translations: Record<string, Record<string, TranslationValue>> = {
     loadMore: "Loading more...",
     noMore: "No more news",
     all: "All",
+    quickRead: "Quick Scan",
+    deepRead: "Deep Read",
+    followUp: "Follow Up",
+    filterKeywords: "Filter Keywords",
+    searchPlaceholder: "Search news...",
+    readingGuide: "Reading Guide",
+    quickReadDesc: "Scan headlines and trends",
+    deepReadDesc: "In-depth analysis and long reads",
+    followUpDesc: "Explore sources and discussions",
     ai: "AI",
     startup: "Startups",
     tech: "Technology",
@@ -106,38 +158,37 @@ const sourceColorsEn: Record<string, string> = {
 
 const tabs = [
   { id: "all", labelKey: "all", icon: <Sparkles className="w-4 h-4" />, color: "blue" },
-  { id: "ai", labelKey: "ai", icon: <Brain className="w-4 h-4" />, color: "blue" },
-  { id: "startup", labelKey: "startup", icon: <Rocket className="w-4 h-4" />, color: "purple" },
-  { id: "tech", labelKey: "tech", icon: <Cpu className="w-4 h-4" />, color: "emerald" },
-  { id: "trend", labelKey: "trend", icon: <TrendingUp className="w-4 h-4" />, color: "orange" },
+  { id: "quick", labelKey: "quickRead", icon: <Zap className="w-4 h-4" />, color: "yellow" },
+  { id: "deep", labelKey: "deepRead", icon: <BookOpen className="w-4 h-4" />, color: "purple" },
+  { id: "followup", labelKey: "followUp", icon: <Target className="w-4 h-4" />, color: "green" },
 ];
 
 const tabColorMap: Record<string, string> = {
   blue: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  yellow: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   purple: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  emerald: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  orange: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  green: "bg-green-500/20 text-green-400 border-green-500/30",
 };
 
 const tabActiveColorMap: Record<string, string> = {
   blue: "bg-blue-600 text-white border-blue-600",
+  yellow: "bg-yellow-600 text-white border-yellow-600",
   purple: "bg-purple-600 text-white border-purple-600",
-  emerald: "bg-emerald-600 text-white border-emerald-600",
-  orange: "bg-orange-600 text-white border-orange-600",
+  green: "bg-green-600 text-white border-green-600",
 };
 
 const tabColorMapEn: Record<string, string> = {
   blue: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  yellow: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
   purple: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  emerald: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  orange: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  green: "bg-green-500/20 text-green-400 border-green-500/30",
 };
 
 const tabActiveColorMapEn: Record<string, string> = {
   blue: "bg-blue-600 text-white border-blue-600",
+  yellow: "bg-yellow-600 text-white border-yellow-600",
   purple: "bg-purple-600 text-white border-purple-600",
-  emerald: "bg-emerald-600 text-white border-emerald-600",
-  orange: "bg-orange-600 text-white border-orange-600",
+  green: "bg-green-600 text-white border-green-600",
 };
 
 interface LanguageContextType {
@@ -182,6 +233,44 @@ function cleanText(text: string | null | undefined) {
   return text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
 
+function highlightKeywords(text: string, keywords: string[] = []): React.ReactNode {
+  if (keywords.length === 0) return text;
+  
+  let result = text;
+  const usedKeywords = new Set<string>();
+  
+  for (const keyword of keywords) {
+    if (usedKeywords.has(keyword)) continue;
+    const regex = new RegExp(`(${keyword})`, "gi");
+    if (regex.test(result)) {
+      result = result.replace(regex, "**$1**");
+      usedKeywords.add(keyword);
+    }
+  }
+  
+  const parts = result.split("**");
+  return parts.map((part, index) => {
+    const isMatch = keywords.some(k => k.toLowerCase() === part.toLowerCase());
+    if (isMatch) {
+      const colorClass = keywordColors[part] || "bg-yellow-500/30 text-yellow-300 px-1 rounded";
+      return <span key={index} className={colorClass}>{part}</span>;
+    }
+    return part;
+  });
+}
+
+function getCategoryBadge(category?: string): { label: string; color: string } | null {
+  if (!category) return null;
+  
+  const badges: Record<string, { label: string; color: string }> = {
+    quick: { label: "速读", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+    deep: { label: "精读", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
+    followup: { label: "跟进", color: "bg-green-500/20 text-green-400 border-green-500/30" },
+  };
+  
+  return badges[category] || null;
+}
+
 function NewsCard({ item }: { item: NewsItem }) {
   const { lang, t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
@@ -190,17 +279,32 @@ function NewsCard({ item }: { item: NewsItem }) {
   const fullText = cleanText(item.description);
   const truncatedText = fullText.length > 100 ? fullText.substring(0, 100) + "..." : fullText;
   const needTruncate = fullText.length > 100;
+  const categoryBadge = getCategoryBadge(item.category);
+  const isClustered = item.clusterId !== undefined;
 
   return (
     <div 
-      className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+      className={`bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all duration-300 ${isClustered ? 'ring-1 ring-yellow-500/30' : ''}`}
       onClick={() => { if (!expanded) setExpanded(true); }}
     >
       <div className="p-5">
-        <div className="flex justify-between items-center mb-3">
-          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sourceColor}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-            {sourceDisplay}
+        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${sourceColor}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+              {sourceDisplay}
+            </div>
+            {categoryBadge && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${categoryBadge.color}`}>
+                {lang === "zh" ? categoryBadge.label : categoryBadge.label}
+              </span>
+            )}
+            {isClustered && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                <Target className="w-3 h-3" />
+                聚类
+              </span>
+            )}
           </div>
           <span className="flex items-center gap-1 text-xs text-gray-500">
             <Clock className="w-3 h-3" />
@@ -209,8 +313,29 @@ function NewsCard({ item }: { item: NewsItem }) {
         </div>
         
         <h3 className="text-[15px] font-semibold text-white leading-snug mb-3">
-          {item.title}
+          {highlightKeywords(item.title, item.keywords)}
         </h3>
+        
+        {item.keywords && item.keywords.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {item.keywords.slice(0, 4).map((keyword) => (
+              <span
+                key={keyword}
+                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium border ${keywordColors[keyword] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}
+              >
+                {keyword}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        {expanded && item.summary && (
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-3">
+            <p className="text-xs text-blue-300 leading-relaxed">
+              {item.summary}
+            </p>
+          </div>
+        )}
         
         <p className="text-sm text-gray-400 leading-relaxed mb-4">
           {needTruncate && !expanded ? truncatedText : fullText}
@@ -227,7 +352,7 @@ function NewsCard({ item }: { item: NewsItem }) {
         )}
         
         {expanded ? (
-          <div className="flex gap-4 items-center pt-3 border-t border-white/10">
+          <div className="flex gap-4 items-center pt-3 border-t border-white/10 flex-wrap">
             <a 
               href={item.link} 
               target="_blank" 
@@ -238,6 +363,19 @@ function NewsCard({ item }: { item: NewsItem }) {
               <ExternalLink className="w-3.5 h-3.5" />
               {t("readMore")}
             </a>
+            
+            {item.category === "followup" && (
+              <a 
+                href={`https://news.ycombinator.com/search?q=${encodeURIComponent(item.title)}`}
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-orange-400 hover:text-orange-300"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Target className="w-3.5 h-3.5" />
+                HN讨论
+              </a>
+            )}
             
             <button
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white"
@@ -259,10 +397,6 @@ function NewsCard({ item }: { item: NewsItem }) {
             {t("readMore")}
           </a>
         )}
-        
-        <div className="text-xs text-gray-500 mt-3">
-          {t("from")}: {sourceDisplay}
-        </div>
       </div>
     </div>
   );
@@ -289,6 +423,7 @@ export default function Home() {
   const [lang, setLang] = useState("en");
   const [email, setEmail] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -307,7 +442,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchNews(1, true);
-  }, [activeTab]);
+  }, [activeTab, searchQuery]);
 
   async function fetchNews(pageNum: number, reset: boolean = false) {
     if (reset) {
@@ -317,7 +452,11 @@ export default function Home() {
     }
 
     try {
-      const res = await fetch(`/api/news?page=${pageNum}&category=${activeTab}&lang=${lang}`);
+      let url = `/api/news?page=${pageNum}&category=${activeTab}&lang=${lang}`;
+      if (searchQuery) {
+        url += `&keyword=${encodeURIComponent(searchQuery)}`;
+      }
+      const res = await fetch(url);
       const data = await res.json();
       
       if (data.news) {
@@ -454,41 +593,66 @@ export default function Home() {
           </div>
 
             <section id="news">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                 <h3 className="text-2xl font-bold text-white">{t("hotNews")}</h3>
-                <button
-                  onClick={() => {
-                    setIsRefreshing(true);
-                    fetchNews(1, true).then(() => setIsRefreshing(false));
-                  }}
-                  disabled={isRefreshing}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
-                  title={t("loading")}
-                >
-                  <RotateCcw className={`w-5 h-5 text-gray-500 hover:text-white ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setPage(1);
+                        setHasMore(true);
+                      }}
+                      placeholder={t("searchPlaceholder")}
+                      className="pl-9 pr-4 py-2 rounded-lg border border-white/20 bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm w-48"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsRefreshing(true);
+                      fetchNews(1, true).then(() => setIsRefreshing(false));
+                    }}
+                    disabled={isRefreshing}
+                    className="p-2 rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50"
+                    title={t("loading")}
+                  >
+                    <RotateCcw className={`w-5 h-5 text-gray-500 hover:text-white ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
               </div>
 
-            <div className="flex flex-wrap gap-2 mb-8">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setPage(1);
-                    setHasMore(true);
-                  }}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? activeTabColorMap[tab.color]
-                      : `${activeColorMap[tab.color]} hover:bg-white/5`
-                  }`}
-                >
-                  {tab.icon}
-                  {t(tab.labelKey)}
-                </button>
-              ))}
-            </div>
+              <div className="flex flex-wrap gap-2 mb-8">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setPage(1);
+                      setHasMore(true);
+                    }}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border font-medium text-sm transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? activeTabColorMap[tab.color]
+                        : `${activeColorMap[tab.color]} hover:bg-white/5`
+                    }`}
+                  >
+                    {tab.icon}
+                    {t(tab.labelKey)}
+                  </button>
+                ))}
+              </div>
+
+              {searchQuery && (
+                <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <p className="text-sm text-blue-300">
+                    <Search className="w-4 h-4 inline mr-2" />
+                    搜索: "{searchQuery}" - {news.length} 条结果
+                  </p>
+                </div>
+              )}
 
             {loading ? (
               <LoadingSkeleton />
